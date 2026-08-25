@@ -1,33 +1,44 @@
-from flask import Flask, jsonify
-from flask_sqlalchemy import SQLAlchemy
+import os
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 from flask_talisman import Talisman
-from flask_cors import CORS # <-- Nuevo import
+from supabase import create_client, Client
 
 app = Flask(__name__)
-CORS(app) # <-- Activar CORS para permitir peticiones externas
-
+CORS(app)
 Talisman(app)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tienda.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
-
-class Producto(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(100), nullable=False)
-    precio = db.Column(db.Float, nullable=False)
-    imagen = db.Column(db.String(200), nullable=False)
+url: str = os.environ.get("SUPABASE_URL", "")
+key: str = os.environ.get("SUPABASE_KEY", "")
+supabase: Client = None
+if url and key:
+    supabase = create_client(url, key)
 
 @app.route('/api/productos', methods=['GET'])
 def get_productos():
-    productos = Producto.query.all()
-    return jsonify([{'id': p.id, 'nombre': p.nombre, 'precio': p.precio, 'imagen': p.imagen} for p in productos])
+    productos = [
+        {'id': 1, 'nombre': 'Figura Goku SSJ', 'precio': 1500.0, 'imagen': 'goku.jpg'},
+        {'id': 2, 'nombre': 'Manga One Piece Vol. 1', 'precio': 250.0, 'imagen': 'onepiece.jpg'}
+    ]
+    return jsonify(productos)
+
+@app.route('/api/pagar', methods=['POST'])
+def procesar_pago():
+    if not supabase:
+        return jsonify({"error": "Error de conexion con la base de datos"}), 500
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({"error": "Acceso denegado. Se requiere autenticacion."}), 401
+ 
+    datos_compra = request.json
+    
+
+    
+    return jsonify({
+        "mensaje": "Pago procesado correctamente",
+        "estado": "AUTHORIZED",
+        "monto": datos_compra.get("monto", 0)
+    })
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        if not Producto.query.first():
-            db.session.add(Producto(nombre="Figura Goku SSJ", precio=1500.0, imagen="goku.jpg"))
-            db.session.add(Producto(nombre="Manga One Piece Vol. 1", precio=250.0, imagen="onepiece.jpg"))
-            db.session.commit()
     app.run(host='0.0.0.0', port=5000)
