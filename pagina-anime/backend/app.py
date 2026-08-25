@@ -8,8 +8,8 @@ app = Flask(__name__)
 CORS(app)
 Talisman(app)
 
-url: str = os.environ.get("SUPABASE_URL", "")
-key: str = os.environ.get("SUPABASE_KEY", "")
+url: str = os.environ.get("https://ygvzhdhxmjprkjaxgoaj.supabase.co", "")
+key: str = os.environ.get("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlndnpoZGh4bWpwcmtqYXhnb2FqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2ODQ5NTksImV4cCI6MjEwMzI2MDk1OX0.I6AQpVjlF8rHqjDx0ZYUa66Q-G9v9nLiAwtDf13uI-o", "")
 supabase: Client = None
 if url and key:
     supabase = create_client(url, key)
