@@ -19,6 +19,9 @@ PRODUCTOS_DB = {
     2: {'nombre': 'Manga One Piece Vol. 1', 'precio': 250.0, 'imagen': 'onepiece.jpg'}
 }
 
+
+SALDOS_DB = {}
+
 @app.route('/api/productos', methods=['GET'])
 def get_productos():
     productos_lista = [{'id': k, **v} for k, v in PRODUCTOS_DB.items()]
@@ -33,8 +36,12 @@ def procesar_pago():
     if not auth_header:
         return jsonify({"error": "Acceso denegado. Se requiere autenticacion."}), 401
 
+    usuario_id = auth_header
+
+    if usuario_id not in SALDOS_DB:
+        SALDOS_DB[usuario_id] = 1000.0
+
     datos_compra = request.json
-  
     carrito = datos_compra.get("carrito", [])
     if not carrito:
         return jsonify({"error": "El carrito esta vacio"}), 400
@@ -48,13 +55,18 @@ def procesar_pago():
             monto_total += producto['precio']
             nombres_comprados.append(producto['nombre'])
 
+    if SALDOS_DB[usuario_id] < monto_total:
+        return jsonify({"error": f"Fondos insuficientes. Tu saldo es ${SALDOS_DB[usuario_id]} y el total es ${monto_total}"}), 400
+
+    SALDOS_DB[usuario_id] -= monto_total
     concepto = f"Compra: {', '.join(nombres_comprados)}"
 
     return jsonify({
         "mensaje": "Pago procesado correctamente",
         "estado": "AUTHORIZED",
         "monto": monto_total,
-        "concepto": concepto
+        "concepto": concepto,
+        "nuevo_saldo": SALDOS_DB[usuario_id]  
     })
 
 if __name__ == '__main__':
