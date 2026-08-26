@@ -28,6 +28,7 @@
         <div>
             <span class="brand">Tienda Anime</span>
             <button onclick="mostrarSeccion('tienda')">Tienda</button>
+            <button id="btn-carrito-nav" onclick="mostrarSeccion('seccion-carrito')" style="display:none;">Carrito (<span id="cart-count">0</span>)</button>
             <button id="btn-banco" onclick="mostrarSeccion('banco')" style="display:none;">Mi Banco</button>
             <button id="btn-pedidos" onclick="mostrarSeccion('pedidos')" style="display:none;">Historial</button>
         </div>
@@ -43,6 +44,18 @@
         <div id="tienda" class="section active">
             <h2>Catálogo de Productos</h2>
             <div id="lista-productos" class="grid-productos">Cargando productos...</div>
+        </div>
+
+        <!-- SECCIÓN CARRITO -->
+        <div id="seccion-carrito" class="section">
+            <h2>Tu Carrito de Compras</h2>
+            <div class="card">
+                <ul id="lista-carrito" style="list-style: none; padding: 0;">
+                    <li>El carrito está vacío.</li>
+                </ul>
+                <hr style="border-color: #333;">
+                <button class="btn-primary" style="background: #ff9900;" onclick="pagarCarrito()">Pagar Carrito Seguro</button>
+            </div>
         </div>
 
         <div id="login" class="section">
@@ -67,7 +80,6 @@
             </div>
         </div>
 
-        <!-- PEDIDOS -->
         <div id="pedidos" class="section">
             <h2>Historial de Movimientos</h2>
             <div class="card">
@@ -79,13 +91,15 @@
     </div>
 
     <script>
-  
+        // PEGA AQUÍ TU URL Y CLAVE DE SUPABASE (La que pusiste en Render)
         const supabaseUrl = 'https://ygvzhdhxmjprkjaxgoaj.supabase.co'; 
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlndnpoZGh4bWpwcmtqYXhnb2FqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2ODQ5NTksImV4cCI6MjEwMzI2MDk1OX0.I6AQpVjlF8rHqjDx0ZYUa66Q-G9v9nLiAwtDf13uI-o'; 
-        
+
         const clienteSupabase = window.supabase.createClient(supabaseUrl, supabaseKey);
         const backendUrl = 'https://recuperacion-e6qj.onrender.com';
+        
         let sessionToken = null;
+        let carritoIds = []; 
 
         function mostrarSeccion(id) {
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
@@ -95,27 +109,16 @@
         async function registrarUsuario() {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            
-            if (!email || !password) {
-                alert("Por favor, pon un correo y contraseña.");
-                return;
-            }
-
-            const { data, error } = await clienteSupabase.auth.signUp({ email, password });
-            
-            if (error) {
-                alert("Error al registrar: " + error.message);
-            } else {
-                alert("¡Cuenta creada con éxito! Ya puedes darle al botón de Ingresar.");
-            }
+            if (!email || !password) return alert("Por favor, pon un correo y contraseña.");
+            const { error } = await clienteSupabase.auth.signUp({ email, password });
+            if (error) alert("Error al registrar: " + error.message);
+            else alert("¡Cuenta creada con éxito! Ya puedes darle al botón de Ingresar.");
         }
 
         async function iniciarSesion() {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            
             const { data, error } = await clienteSupabase.auth.signInWithPassword({ email, password });
-            
             if (error) {
                 alert("Error de acceso: Credenciales incorrectas.");
             } else {
@@ -125,6 +128,7 @@
                 document.getElementById('btn-logout').style.display = 'inline-block';
                 document.getElementById('btn-banco').style.display = 'inline-block';
                 document.getElementById('btn-pedidos').style.display = 'inline-block';
+                document.getElementById('btn-carrito-nav').style.display = 'inline-block';
                 mostrarSeccion('tienda');
                 alert("¡Sesión iniciada correctamente!");
             }
@@ -132,13 +136,15 @@
 
         async function cerrarSesion() {
             await clienteSupabase.auth.signOut();
-            
             sessionToken = null;
+            carritoIds = [];
+            document.getElementById('cart-count').innerText = '0';
             document.getElementById('user-info').innerText = 'Invitado';
             document.getElementById('btn-login').style.display = 'inline-block';
             document.getElementById('btn-logout').style.display = 'none';
             document.getElementById('btn-banco').style.display = 'none';
             document.getElementById('btn-pedidos').style.display = 'none';
+            document.getElementById('btn-carrito-nav').style.display = 'none';
             mostrarSeccion('tienda');
         }
 
@@ -153,7 +159,7 @@
                         <div class="card">
                             <h3 style="margin-top:0;">${p.nombre}</h3>
                             <p style="font-size: 1.2em; color: #28a745;">$${p.precio} MXN</p>
-                            <button class="btn-primary" onclick="comprar('${p.nombre}', ${p.precio})">Comprar Artículo</button>
+                            <button class="btn-primary" onclick="agregarAlCarrito(${p.id}, '${p.nombre}')">Añadir al Carrito</button>
                         </div>
                     `;
                 });
@@ -162,27 +168,25 @@
             }
         }
 
-        async function comprar(nombre, precio) {
+        function agregarAlCarrito(id, nombre) {
             if (!sessionToken) {
-                alert("Seguridad: Debes iniciar sesión para realizar compras.");
+                alert("Seguridad: Debes iniciar sesión para añadir al carrito.");
                 mostrarSeccion('login');
                 return;
             }
-            ejecutarPagoSeguro(`Compra: ${nombre}`, precio);
+            carritoIds.push(id);
+            document.getElementById('cart-count').innerText = carritoIds.length;
+            
+            const lista = document.getElementById('lista-carrito');
+            if (carritoIds.length === 1) lista.innerHTML = ''; 
+            lista.innerHTML += `<li style="padding: 5px 0;">- ${nombre}</li>`;
+            
+            alert(`${nombre} añadido a tu carrito.`);
         }
 
-        async function procesarTransferencia() {
-            const destino = document.getElementById('cuenta-destino').value;
-            const monto = parseFloat(document.getElementById('monto-transferencia').value);
-            if (!destino || !monto) {
-                alert("Por favor llena todos los campos de la transferencia.");
-                return;
-            }
-            ejecutarPagoSeguro(`Transferencia a: ${destino}`, monto);
-        }
-
-        async function ejecutarPagoSeguro(concepto, monto) {
-            if (!sessionToken) return;
+        async function pagarCarrito() {
+            if (!sessionToken || carritoIds.length === 0) return alert("El carrito está vacío.");
+            
             try {
                 const response = await fetch(`${backendUrl}/api/pagar`, {
                     method: 'POST',
@@ -190,20 +194,32 @@
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${sessionToken}`
                     },
-                    body: JSON.stringify({ concepto, monto })
+                    body: JSON.stringify({ carrito: carritoIds }) 
                 });
                 const data = await response.json();
                 if (response.ok) {
-                    alert(`¡Éxito! ${data.mensaje}`);
+                    alert(`¡Éxito! ${data.mensaje}. Total cobrado en backend: $${data.monto}`);
                     const lista = document.getElementById('lista-movimientos');
                     const fecha = new Date().toLocaleString();
-                    lista.innerHTML = `<li style="padding: 10px; border-bottom: 1px solid #333;"><strong>${concepto}</strong> - $${monto} <span style="color:#28a745; float:right;">[${data.estado}]</span><br><small style="color:#888;">${fecha}</small></li>` + lista.innerHTML;
+                    lista.innerHTML = `<li style="padding: 10px; border-bottom: 1px solid #333;"><strong>${data.concepto}</strong> - $${data.monto} <span style="color:#28a745; float:right;">[${data.estado}]</span><br><small style="color:#888;">${fecha}</small></li>` + lista.innerHTML;
+                    
+                    carritoIds = [];
+                    document.getElementById('cart-count').innerText = '0';
+                    document.getElementById('lista-carrito').innerHTML = '<li>El carrito está vacío.</li>';
+                    mostrarSeccion('pedidos');
                 } else {
                     alert("Operación denegada: " + data.error);
                 }
             } catch (error) {
                 alert("Error crítico: No se pudo establecer conexión segura.");
             }
+        }
+
+        async function procesarTransferencia() {
+            const destino = document.getElementById('cuenta-destino').value;
+            const monto = parseFloat(document.getElementById('monto-transferencia').value);
+            if (!destino || !monto) return alert("Por favor llena todos los campos de la transferencia.");
+            alert("Transferencia bancaria libre solo simulada visualmente por seguridad.");
         }
 
         cargarProductos();
